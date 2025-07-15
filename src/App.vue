@@ -1,52 +1,80 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, onMounted } from 'vue'
 import TodoItem from './components/TodoItem.vue'
+import { supabase } from './assets/superbase.js'
 
 const newTodo = ref('')
 const todos = ref([])
 const filter = ref('all')
+// const error = ref()
 
-// Add a new todo
-function addTodo() {
-  if (newTodo.value.trim() === '') return
-  
-  todos.value.push({
-    text: newTodo.value.trim(),
-    completed: false,
-    createdAt: new Date()
-  })
-  
-  newTodo.value = ''
+// Fetch todos from Supabase
+async function fetchTodos() {
+  const { data, error } = await supabase
+    .from('todos')
+    .select('*')
+    .order('created_at', { ascending: false })
+
+  if (error) console.error('Error fetching todos:', error)
+  else todos.value = data
 }
 
-// Toggle todo completion
-function toggleComplete(index) {
-  todos.value[index].completed = !todos.value[index].completed
-}
+// Add a new todo to Supabase
+async function addTodo() {
+  if (!newTodo.value.trim()) return
 
-// Delete a todo
-function deleteTodo(index) {
-  todos.value.splice(index, 1)
-}
+  const { data, error } = await supabase
+    .from('todos')
+    .insert([{ text: newTodo.value.trim(), completed: false }])
+    .select()
 
-// Filtered todos
-const filteredTodos = computed(() => {
-  switch (filter.value) {
-    case 'active':
-      return todos.value.filter(todo => !todo.completed)
-    case 'completed':
-      return todos.value.filter(todo => todo.completed)
-    default:
-      return todos.value
+  if (error) console.error('Error adding todo:', error)
+  else {
+    todos.value.unshift(data[0])
+    newTodo.value = ''
   }
-})
+}
+
+// Toggle todo completion in Supabase
+async function toggleComplete(index) {
+  const todo = todos.value[index]
+  const { error } = await supabase
+    .from('todos')
+    .update({ completed: !todo.completed })
+    .eq('id', todo.id)
+
+  if (error) console.error('Error updating todo:', error)
+  else todo.completed = !todo.completed
+}
+
+// Delete a todo from Supabase
+async function deleteTodo(index) {
+  const todo = todos.value[index]
+  const { error } = await supabase
+    .from('todos')
+    .delete()
+    .eq('id', todo.id)
+
+  if (error) console.error('Error deleting todo:', error)
+  else todos.value.splice(index, 1)
+}
 
 // Clear completed todos
-function clearCompleted() {
-  todos.value = todos.value.filter(todo => !todo.completed)
-}
-</script>
+async function clearCompleted() {
+  const { error } = await supabase
+    .from('todos')
+    .delete()
+    .eq('completed', true)
 
+  if (error) console.error('Error clearing todos:', error)
+  else todos.value = todos.value.filter(todo => !todo.completed)
+}
+
+// Fetch todos when the component mounts
+onMounted(() => {
+  fetchTodos()
+})
+</script>
 <template>
   <div class="min-h-screen bg-gray-100 py-8 px-4 sm:px-6 lg:px-8">
     <div class="max-w-md mx-auto">
@@ -58,6 +86,9 @@ function clearCompleted() {
         <!-- Add new todo form -->
         <div class="p-4 border-b">
           <form @submit.prevent="addTodo" class="flex gap-2">
+          <!-- <span v-if="this.error" class="bg-red-500 p-6">
+{{ this.error }}
+          </span> -->
             <input
               v-model="newTodo"
               type="text"
@@ -76,7 +107,7 @@ function clearCompleted() {
         <!-- Todo list -->
         <ul class="divide-y divide-gray-200">
           <TodoItem
-            v-for="(todo, index) in filteredTodos"
+            v-for="(todo, index) in fetchTodos"
             :key="index"
             :todo="todo"
             :index="index"
@@ -84,7 +115,7 @@ function clearCompleted() {
             @delete-todo="deleteTodo"
           />
           
-          <li v-if="filteredTodos.length === 0" class="p-4 text-center text-gray-500">
+          <li v-if="fetchTodos.length === 0" class="p-4 text-center text-gray-500">
             No todos found
           </li>
         </ul>
