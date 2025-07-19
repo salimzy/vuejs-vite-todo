@@ -42,11 +42,11 @@ npm install && npm run dev
 VITE_SUPABASE_URL=your-supabase-url
 VITE_SUPABASE_KEY=your-supabase-key
 ```
-4. Run development server
+3. Run development server
 ```bash
 npm run dev ```
 
-5. Build for production
+4. Build for production
 ```bash
 npm run build ```
 ### Supabase Setup 🔌
